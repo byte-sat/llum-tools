@@ -104,22 +104,27 @@ func codocFunc(inj *Injector, fn any) (schema.Function, invoker) {
 		}
 	}
 
-	return schema.Function{
-			Name:        name,
-			Description: desc,
-			Parameters: schema.Definition{
-				Type:       schema.Object,
-				Properties: args,
-				Required:   argNames,
-			},
+	fschema := schema.Function{
+		Name:        name,
+		Description: desc,
+		Parameters: schema.Definition{
+			Type:       schema.Object,
+			Properties: args,
+			Required:   argNames,
 		},
-		&codocFuncInvoker{
-			injected:      injected,
-			argConverters: argConverters,
-			outfn:         outfn,
-			argNames:      argNames,
-			fnv:           fnv,
-		}
+	}
+
+	if len(argNames) == 0 {
+		fschema.Parameters = schema.Definition{}
+	}
+
+	return fschema, &codocFuncInvoker{
+		injected:      injected,
+		argConverters: argConverters,
+		outfn:         outfn,
+		argNames:      argNames,
+		fnv:           fnv,
+	}
 }
 
 type codocFuncInvoker struct {
