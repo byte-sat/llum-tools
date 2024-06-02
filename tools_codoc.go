@@ -1,13 +1,13 @@
-// generated @ 2024-06-01T12:45:20+03:00 by gendoc
+// generated @ 2024-06-02T00:06:36+03:00 by gendoc
 package main
 
 import "github.com/noonien/codoc"
 
 func init() {
 	codoc.Register(codoc.Package{
-		ID:   "github.com/noonien/llum-tools",
+		ID:   "github.com/byte-sat/llum-tools",
 		Name: "main",
-		Doc:  "generated @ 2024-06-01T12:41:40+03:00 by gendoc",
+		Doc:  "generated @ 2024-06-01T12:45:20+03:00 by gendoc",
 		Functions: map[string]codoc.Function{
 			"Whois": {
 				Name: "Whois",
@@ -32,11 +32,9 @@ func init() {
 			},
 			"woop": {
 				Name: "woop",
-				Doc:  "woops the foo\nf: foo\ny: yeets\nz: zzz",
+				Doc:  "woops the foo\nf: foo",
 				Args: []string{
 					"f",
-					"y",
-					"z",
 				},
 			},
 		},

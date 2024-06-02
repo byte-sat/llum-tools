@@ -17,7 +17,7 @@ var argRegex = regexp.MustCompile(`(?m)^([a-zA-Z_][a-zA-Z0-9_]*): (.+)$`)
 var ctxType = reflect.TypeFor[context.Context]()
 var errType = reflect.TypeFor[error]()
 
-func CodocFunc(fn any) Tool {
+func codocFunc(fn any) (schema.Function, Invoker) {
 	fnv := reflect.ValueOf(fn)
 	if fnv.Kind() != reflect.Func {
 		panic("fn must be a function")
@@ -115,8 +115,7 @@ func CodocFunc(fn any) Tool {
 		}
 	}
 
-	return Tool{
-		Function: schema.Function{
+	return schema.Function{
 			Name:        name,
 			Description: desc,
 			Parameters: schema.Definition{
@@ -125,14 +124,13 @@ func CodocFunc(fn any) Tool {
 				Required:   argNames,
 			},
 		},
-		Invoker: &codocFuncInvoker{
+		&codocFuncInvoker{
 			specialNo:     specialNo,
 			argConverters: argConverters,
 			outfn:         outfn,
 			argNames:      argNames,
 			fnv:           fnv,
-		},
-	}
+		}
 }
 
 type codocFuncInvoker struct {

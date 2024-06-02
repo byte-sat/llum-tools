@@ -11,6 +11,9 @@ import (
 
 func typeDefinition(t reflect.Type) schema.Definition {
 	switch t.Kind() {
+	case reflect.Pointer:
+		return typeDefinition(t.Elem())
+
 	case reflect.Bool:
 		return schema.Definition{
 			Type: schema.Boolean,
@@ -42,19 +45,9 @@ func typeDefinition(t reflect.Type) schema.Definition {
 				continue
 			}
 
-			name := f.Name
-			if llmtag := f.Tag.Get("llm"); llmtag != "" {
-				llmname, _, _ := strings.Cut(llmtag, ",")
-				if llmname == "-" {
-					continue
-				}
-				name = llmname
-			} else if jstag := f.Tag.Get("json"); jstag != "" {
-				jsname, _, _ := strings.Cut(jstag, ",")
-				if jsname == "-" {
-					continue
-				}
-				name = jsname
+			name := fieldName(f)
+			if name == "" {
+				continue
 			}
 
 			prop := schema.Property{
@@ -105,4 +98,20 @@ func typeDefinition(t reflect.Type) schema.Definition {
 		panic(fmt.Sprintf("unsupported argument type %s", t.Kind()))
 	}
 
+}
+
+func fieldName(f reflect.StructField) string {
+	var name string
+	if tag := f.Tag.Get("llm"); tag != "" {
+		name, _, _ = strings.Cut(tag, ",")
+	} else if tag := f.Tag.Get("json"); tag != "" {
+		name, _, _ = strings.Cut(tag, ",")
+	}
+	if name == "-" {
+		return ""
+	}
+	if name == "" {
+		return f.Name
+	}
+	return name
 }

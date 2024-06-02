@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/byte-sat/llum-tools/tools"
+	"github.com/davecgh/go-spew/spew"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
@@ -28,15 +29,18 @@ func add(a int, b int) int {
 
 type Foo struct {
 	A int `json:"a"` // foo
-	B int
+	B float64
+	C *string
+	D [2]int
+	E []int
+	F map[string]int
 }
 
 // woops the foo
 // f: foo
-// y: yeets
-// z: zzz
-func woop(f Foo, y map[string]int, z []int) int {
-	return f.A + f.B
+func woop(f Foo) int {
+	spew.Dump(f)
+	return f.A + int(f.B)
 }
 
 // Get domain whois
@@ -45,18 +49,15 @@ func Whois(domain string) (string, error) {
 	return whois.Whois(domain)
 }
 
-var toolz tools.Group
+var toolz *tools.Repo
 
 func main() {
 	flag.Parse()
 
-	toolz = tools.Group{
-		Name:        "math",
-		Description: "Mathematical tools",
-		Tools: []tools.Tool{
-			tools.CodocFunc(add),
-			tools.CodocFunc(woop),
-		},
+	var err error
+	toolz, err = tools.New(add, woop, Whois)
+	if err != nil {
+		log.Fatal(err)
 	}
 	r := chi.NewRouter()
 
@@ -93,7 +94,7 @@ type ToolRepo struct {
 func (tr *ToolRepo) GetToolSchema(w http.ResponseWriter, r *http.Request) {
 	enc := json.NewEncoder(w)
 	enc.SetIndent("", "  ")
-	err := enc.Encode(toolz)
+	err := enc.Encode(toolz.Schema())
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
@@ -109,6 +110,7 @@ func (tr *ToolRepo) InvokeTool(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+	spew.Dump(call.Args)
 	out, err := toolz.Invoke(r.Context(), call.Name, call.Args)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
