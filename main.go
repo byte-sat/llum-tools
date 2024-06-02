@@ -4,12 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"flag"
+	"io"
 	"log"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/byte-sat/llum-tools/tools"
-	"github.com/davecgh/go-spew/spew"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
@@ -21,26 +22,9 @@ var addr = flag.String("addr", ":3333", "address to listen on")
 
 //go:generate go run github.com/noonien/codoc/cmd/codoc@latest -out tools_codoc.go -pkg main .
 
-// adds two numbers
-// a: the first number
-// b: the second number
-func add(a int, b int) int {
-	return a + b
-}
-
-type Foo struct {
-	A int `json:"a"` // foo
-	B float64
-	C *string
-	D [2]int
-	E []int
-	F map[string]int
-}
-
-// woops the foo
-// f: foo
-func woop(ctx context.Context, f Foo) int {
-	return f.A + int(f.B)
+// Get the chat id
+func GetCID(cid ChatID) string {
+	return string(cid)
 }
 
 // Get domain whois
@@ -52,12 +36,12 @@ func Whois(domain string) (string, error) {
 func main() {
 	flag.Parse()
 
-	inj, err := tools.Inject(context.Background)
+	inj, err := tools.Inject(context.Background, ChatID(""))
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	repo, err := tools.New(inj, add, woop, Whois)
+	repo, err := tools.New(inj, GetCID, Whois)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -104,22 +88,23 @@ func (tr *ToolRepo) GetToolSchema(w http.ResponseWriter, r *http.Request) {
 
 }
 
+type ChatID string
+
 func (tr *ToolRepo) InvokeTool(w http.ResponseWriter, r *http.Request) {
 	var call struct {
-		Name string         `json:"name"`
-		Args map[string]any `json:"arguments"`
+		ChatID ChatID         `json:"chat_id"`
+		Name   string         `json:"name"`
+		Args   map[string]any `json:"arguments"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&call); err != nil {
+	if err := json.NewDecoder(io.TeeReader(r.Body, os.Stdout)).Decode(&call); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	spew.Dump(call.Args)
 
 	ctx := r.Context()
-	ctx = context.WithValue(ctx, "foo", "bar")
-
 	inj, _ := tools.Inject(
 		func() context.Context { return ctx },
+		call.ChatID,
 	)
 	out, err := tr.Invoke(inj, call.Name, call.Args)
 	if err != nil {
