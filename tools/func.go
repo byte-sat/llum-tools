@@ -88,7 +88,8 @@ func codocFunc(inj *Injector, fn any) (schema.Function, invoker) {
 	case 1:
 		if fnt.Out(0) == errType {
 			outfn = func(outs []reflect.Value) (any, error) {
-				return nil, outs[0].Interface().(error)
+				err, _ := outs[0].Interface().(error)
+				return nil, err
 			}
 		} else {
 			outfn = func(outs []reflect.Value) (any, error) {
@@ -100,7 +101,8 @@ func codocFunc(inj *Injector, fn any) (schema.Function, invoker) {
 			panic("second return value must be an error")
 		}
 		outfn = func(outs []reflect.Value) (any, error) {
-			return outs[0].Interface(), outs[1].Interface().(error)
+			err, _ := outs[1].Interface().(error)
+			return outs[0].Interface(), err
 		}
 	}
 
