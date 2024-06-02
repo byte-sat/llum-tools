@@ -1,7 +1,6 @@
 package tools
 
 import (
-	"context"
 	"fmt"
 	"reflect"
 	"regexp"
@@ -14,10 +13,9 @@ import (
 
 var argRegex = regexp.MustCompile(`(?m)^([a-zA-Z_][a-zA-Z0-9_]*): (.+)$`)
 
-var ctxType = reflect.TypeFor[context.Context]()
 var errType = reflect.TypeFor[error]()
 
-func codocFunc(fn any) (schema.Function, Invoker) {
+func codocFunc(inj *Injector, fn any) (schema.Function, invoker) {
 	fnv := reflect.ValueOf(fn)
 	if fnv.Kind() != reflect.Func {
 		panic("fn must be a function")
@@ -53,39 +51,30 @@ func codocFunc(fn any) (schema.Function, Invoker) {
 		desc = strings.TrimSpace(doc.Doc[:idx[0]])
 	}
 
-	//specials := map[reflect.Type]bool{
-	//	reflect.TypeFor[context.Context](): false,
-	//}
-
-	var specialNo int
-	//for i := 0; i < fnt.NumIn(); i++ {
-	//	it := fnt.In(i)
-	//	filled, ok := specials[it]
-	//	if !ok {
-	//		specialNo = i + 1
-	//		break
-	//	}
-	//	if filled {
-	//		panic("special argument used more than once")
-	//	}
-	//	specials[it] = true
-	//}
-
-	argNo := fnt.NumIn() - specialNo
-	argNames := make([]string, 0, argNo)
-	argConverters := make([]argConverter, argNo)
-	args := make([]schema.Property, 0, argNo)
-
+	injected := make([]reflect.Type, 0, fnt.NumIn())
 	for i := 0; i < fnt.NumIn(); i++ {
 		it := fnt.In(i)
+		if !inj.has(it) {
+			break
+		}
 
+		injected = append(injected, it)
+	}
+
+	argNo := fnt.NumIn() - len(injected)
+	argNames := make([]string, 0, argNo)
+	argConverters := make([]argConverter, 0, argNo)
+	args := make([]schema.Property, 0, argNo)
+
+	for i := len(injected); i < fnt.NumIn(); i++ {
+		it := fnt.In(i)
 		name := doc.Args[i]
 
 		def := typeDefinition(it)
 		def.Description = argDescs[name]
 
 		argNames = append(argNames, name)
-		argConverters[i] = converter(it)
+		argConverters = append(argConverters, converter(it))
 		args = append(args, schema.Property{
 			Name:       name,
 			Definition: def,
@@ -125,7 +114,7 @@ func codocFunc(fn any) (schema.Function, Invoker) {
 			},
 		},
 		&codocFuncInvoker{
-			specialNo:     specialNo,
+			injected:      injected,
 			argConverters: argConverters,
 			outfn:         outfn,
 			argNames:      argNames,
@@ -134,16 +123,32 @@ func codocFunc(fn any) (schema.Function, Invoker) {
 }
 
 type codocFuncInvoker struct {
-	specialNo     int
+	injected      []reflect.Type
+	inj           *Injector
 	argConverters []argConverter
 	argNames      []string
 	outfn         func([]reflect.Value) (any, error)
 	fnv           reflect.Value
 }
 
-func (f *codocFuncInvoker) Invoke(ctx context.Context, args map[string]any) (any, error) {
+func (f *codocFuncInvoker) Invoke(inj *Injector, args map[string]any) (any, error) {
+	if inj == nil {
+		inj = f.inj
+	} else {
+		i := *inj
+		i.parent = f.inj
+		inj = &i
+	}
+
 	visited := map[string]bool{}
-	vals := make([]reflect.Value, 0, len(f.argNames))
+	vals := make([]reflect.Value, 0, len(f.argNames)+len(f.injected))
+	for _, it := range f.injected {
+		val, err := inj.get(it)
+		if err != nil {
+			return nil, err
+		}
+		vals = append(vals, reflect.ValueOf(val))
+	}
 	for i, name := range f.argNames {
 		arg, ok := args[name]
 		if !ok {

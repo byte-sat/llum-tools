@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"flag"
 	"log"
@@ -38,8 +39,7 @@ type Foo struct {
 
 // woops the foo
 // f: foo
-func woop(f Foo) int {
-	spew.Dump(f)
+func woop(ctx context.Context, f Foo) int {
 	return f.A + int(f.B)
 }
 
@@ -49,13 +49,15 @@ func Whois(domain string) (string, error) {
 	return whois.Whois(domain)
 }
 
-var toolz *tools.Repo
-
 func main() {
 	flag.Parse()
 
-	var err error
-	toolz, err = tools.New(add, woop, Whois)
+	inj, err := tools.Inject(context.Background)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	repo, err := tools.New(inj, add, woop, Whois)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -78,7 +80,7 @@ func main() {
 		AllowedHeaders: []string{"*"},
 	}))
 
-	tr := &ToolRepo{}
+	tr := &ToolRepo{repo}
 	r.Get("/tool_schema", tr.GetToolSchema)
 	r.Post("/tool", tr.InvokeTool)
 
@@ -89,12 +91,13 @@ func main() {
 }
 
 type ToolRepo struct {
+	*tools.Repo
 }
 
 func (tr *ToolRepo) GetToolSchema(w http.ResponseWriter, r *http.Request) {
 	enc := json.NewEncoder(w)
 	enc.SetIndent("", "  ")
-	err := enc.Encode(toolz.Schema())
+	err := enc.Encode(tr.Schema())
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
@@ -111,7 +114,14 @@ func (tr *ToolRepo) InvokeTool(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	spew.Dump(call.Args)
-	out, err := toolz.Invoke(r.Context(), call.Name, call.Args)
+
+	ctx := r.Context()
+	ctx = context.WithValue(ctx, "foo", "bar")
+
+	inj, _ := tools.Inject(
+		func() context.Context { return ctx },
+	)
+	out, err := tr.Invoke(inj, call.Name, call.Args)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
