@@ -2,6 +2,7 @@ package tools
 
 import (
 	"fmt"
+	"path/filepath"
 	"reflect"
 	"regexp"
 	"runtime"
@@ -32,7 +33,7 @@ func codocFunc(inj *Injector, fn any) (schema.Function, invoker) {
 
 	ptr := fnv.Pointer()
 	fullName := runtime.FuncForPC(ptr).Name()
-	_, name, _ := strings.Cut(fullName, ".")
+	name := filepath.Ext(fullName)[1:]
 
 	doc := codoc.GetFunction(fullName)
 	if doc == nil {
