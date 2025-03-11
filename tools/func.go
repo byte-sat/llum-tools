@@ -33,6 +33,18 @@ func codocFunc(inj *Injector, fn any) (schema.Function, invoker) {
 
 	ptr := fnv.Pointer()
 	fullName := runtime.FuncForPC(ptr).Name()
+
+	// Remove pointer notation characters (parentheses and asterisks)
+	fullName = strings.Map(func(r rune) rune {
+		if r == '(' || r == ')' || r == '*' {
+			return -1 // Drop this character
+		}
+		return r
+	}, fullName)
+
+	fullName = removeAfter(fullName, "-")  // remove closure prefix (usually -fm)
+	fullName = removeAfter(fullName, "..") // remove cgo closure prefix (usually ..thunkN)
+
 	name := filepath.Ext(fullName)[1:]
 
 	doc := codoc.GetFunction(fullName)
@@ -128,6 +140,14 @@ func codocFunc(inj *Injector, fn any) (schema.Function, invoker) {
 		argNames:      argNames,
 		fnv:           fnv,
 	}
+}
+
+// removeAfter removes the substring after the first occurrence of x in s
+func removeAfter(s string, x string) string {
+	if idx := strings.Index(s, x); idx != -1 {
+		return s[:idx]
+	}
+	return s
 }
 
 type codocFuncInvoker struct {
